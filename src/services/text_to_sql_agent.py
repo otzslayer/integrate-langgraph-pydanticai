@@ -1,38 +1,39 @@
 import structlog
-from typing import List
 from langgraph.graph import END, StateGraph
 from pydantic_ai import Agent
 from sqlalchemy import text
-from langchain_openai import ChatOpenAI
 
-from src.schemas.agent_schemas import GraphState, ThoughtAndSQL, Intent
+from src.schemas.agent_schemas import GraphState, Intent, ThoughtAndSQL
 
 # 로거 설정
 logger = structlog.get_logger(__name__)
 
 # --- Agent Nodes ---
 
+
 async def intent_classifier_node(state: GraphState):
     """Classifies the user's question intent using an LLM agent."""
     logger.info("Executing node: intent_classifier")
-    
+
     intent_agent = Agent("openai:gpt-4o", output_type=Intent)
-    
+
     prompt = f"""
     Classify the user's intent based on their question into one of the following categories: "sql_generation", "greeting", "chit_chat", or "unknown".
 
     - For work-related questions involving data lookup or analysis, classify as "sql_generation".
     - If the intent is unclear, you must classify it as "unknown".
 
-    User Question: {state['question']}
+    User Question: {state["question"]}
     """
-    
+
     try:
         result = await intent_agent.run(prompt)
         intent = result.output.intent
         logger.info("Intent classification complete", intent=intent)
     except Exception as e:
-        logger.error("Error during intent classification", error=str(e), exc_info=True)
+        logger.error(
+            "Error during intent classification", error=str(e), exc_info=True
+        )
         intent = "unknown"
 
     # Initialize thoughts list
@@ -44,38 +45,40 @@ async def sql_generator_node(state: GraphState):
     logger.info("Executing node: sql_generator")
 
     reflection_feedback = "\n".join(state.get("reflection", []))
-    
+
     prompt = f"""
     You are a PostgreSQL database expert. Your goal is to generate a SQL query to answer the user's question.
     First, think about the user's question and the database schema to devise a plan.
     Then, generate the SQL query based on your plan.
 
     ### Database Schema:
-    {state['db_schema']}
+    {state["db_schema"]}
 
     ### Feedback from previous attempts (if any):
     {reflection_feedback if reflection_feedback else "None"}
 
     ### User Question:
-    {state['question']}
+    {state["question"]}
     
     The final query must be a single, valid PostgreSQL SELECT statement ending with a semicolon.
     """
-    
+
     sql_agent = Agent("openai:gpt-4o", output_type=ThoughtAndSQL)
-    
+
     try:
         result = await sql_agent.run(prompt)
         thought = result.output.thought
         sql_query = result.output.query
-        
-        logger.info("SQL generation successful", thought=thought, sql_query=sql_query)
-        
+
+        logger.info(
+            "SQL generation successful", thought=thought, sql_query=sql_query
+        )
+
         # Add thought to state
         thoughts = state.get("thoughts", []) + [thought]
-        
+
         return {"thoughts": thoughts, "sql_query": sql_query}
-        
+
     except Exception as e:
         logger.error("Error during SQL generation", error=str(e), exc_info=True)
         # Set reflection to indicate error and route to final_answer
@@ -85,13 +88,15 @@ async def sql_generator_node(state: GraphState):
 async def reflection_node(state: GraphState):
     """Validates the generated SQL query and suggests improvements."""
     logger.info("Executing node: reflection")
-    
+
     sql_query = state.get("sql_query")
     session = state["db_connection"]
     reflections = []
 
     if not sql_query or not sql_query.strip().lower().startswith("select"):
-        logger.warning("No valid SQL query found for reflection.", sql_query=sql_query)
+        logger.warning(
+            "No valid SQL query found for reflection.", sql_query=sql_query
+        )
         reflections.append(
             "An error occurred during the SQL generation step. "
             "No valid SELECT query was generated."
@@ -114,7 +119,9 @@ async def reflection_node(state: GraphState):
         # Return empty reflection list to proceed to execution
         return {"reflection": []}
     else:
-        logger.info("Reflection result: Improvements needed.", reflections=reflections)
+        logger.info(
+            "Reflection result: Improvements needed.", reflections=reflections
+        )
         # Clear the query so it doesn't get executed
         return {"reflection": reflections, "sql_query": None}
 
@@ -167,8 +174,8 @@ async def final_answer_node(state: GraphState):
             Based on the following question and database query result,
             please provide a natural language answer in Korean.
 
-            - Question: {state['question']}
-            - Query Result: {state['execution_result']}
+            - Question: {state["question"]}
+            - Query Result: {state["execution_result"]}
             """
             result = await final_answer_agent.run(prompt)
             answer = result.output
@@ -180,6 +187,7 @@ async def final_answer_node(state: GraphState):
 
 
 # --- Graph Edges and Configuration ---
+
 
 def route_after_intent_classification(state: GraphState):
     """Determines the next node after intent classification."""
@@ -193,10 +201,13 @@ def route_after_intent_classification(state: GraphState):
 def route_after_reflection(state: GraphState):
     """Determines the next node after SQL reflection."""
     logger.info("Routing decision: after SQL reflection")
-    
+
     # If reflection has found issues, stop and go to the final answer.
     if state.get("reflection"):
-        logger.warning("Reflection found issues. Halting execution.", reflections=state["reflection"])
+        logger.warning(
+            "Reflection found issues. Halting execution.",
+            reflections=state["reflection"],
+        )
         return "final_answer"
 
     logger.info("Query is valid, routing to sql_executor")

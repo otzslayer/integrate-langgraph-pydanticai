@@ -19,6 +19,8 @@ dependencies = [
     "asyncpg>=0.30.0",
     "greenlet>=3.2.4",
     "fastapi-cli>=0.0.4",
+    "streamlit>=1.33.0",
+    "requests>=2.31.0",
 ]
 
 [dependency-groups]

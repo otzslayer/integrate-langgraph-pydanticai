@@ -88,3 +88,24 @@ Python 가상 환경을 설정하고 `uv`를 사용하여 필요한 라이브러
       ```
     - `Execute` 버튼을 눌러 에이전트를 실행합니다.
     - **Response body**에서 에이전트의 답변을 확인합니다.
+
+---
+
+### 4. Streamlit UI 실행
+
+채팅 UI를 통해 에이전트와 대화할 수 있습니다.
+
+1.  **FastAPI 서버 실행 확인**
+    Streamlit UI는 백엔드 API와 통신합니다. **반드시 위의 3단계에 따라 FastAPI 서버가 실행 중이어야 합니다.**
+
+2.  **Streamlit 앱 실행**
+    새로운 터미널을 열고, 가상 환경을 활성화한 후 다음 명령어를 실행합니다.
+
+    ```bash
+    # 가상 환경 활성화 (이미 활성화된 경우 생략)
+    .venv\Scripts\activate
+
+    # Streamlit 앱 실행
+    streamlit run src/ui/app.py
+    ```
+    웹 브라우저에서 Streamlit 채팅 UI가 자동으로 열립니다.
