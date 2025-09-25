@@ -38,7 +38,6 @@ class GraphState(TypedDict):
 
     question: str
     db_schema: str
-    db_connection: Any  # AsyncSession is not easily serializable
     intent: str | None
     sql_query: str | None
     reflection: List[str]

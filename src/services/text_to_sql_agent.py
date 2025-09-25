@@ -3,6 +3,7 @@ from langgraph.graph import END, StateGraph
 from pydantic_ai import Agent
 from sqlalchemy import text
 
+from src.database.connection import AsyncSessionLocal
 from src.schemas.agent_schemas import GraphState, Intent, ThoughtAndSQL
 
 # 로거 설정
@@ -90,7 +91,6 @@ async def reflection_node(state: GraphState):
     logger.info("Executing node: reflection")
 
     sql_query = state.get("sql_query")
-    session = state["db_connection"]
     reflections = []
 
     if not sql_query or not sql_query.strip().lower().startswith("select"):
@@ -103,26 +103,25 @@ async def reflection_node(state: GraphState):
         )
         return {"reflection": reflections, "sql_query": None}
 
-    try:
-        # Validate query using EXPLAIN
-        await session.execute(text(f"EXPLAIN {sql_query}"))
-        logger.info("SQL query syntax validation passed (EXPLAIN).")
-    except Exception as e:
-        logger.warning("SQL query syntax error", error=str(e), exc_info=True)
-        reflections.append(
-            f"Query syntax error: {e}. "
-            f"Please check the schema again and correct it."
-        )
+    async with AsyncSessionLocal() as session:
+        try:
+            # Validate query using EXPLAIN
+            await session.execute(text(f"EXPLAIN {sql_query}"))
+            logger.info("SQL query syntax validation passed (EXPLAIN).")
+        except Exception as e:
+            logger.warning("SQL query syntax error", error=str(e), exc_info=True)
+            reflections.append(
+                f"Query syntax error: {e}. "
+                f"Please check the schema again and correct it."
+            )
 
     if not reflections:
         logger.info("Reflection result: Query is valid.")
-        # Return empty reflection list to proceed to execution
         return {"reflection": []}
     else:
         logger.info(
             "Reflection result: Improvements needed.", reflections=reflections
         )
-        # Clear the query so it doesn't get executed
         return {"reflection": reflections, "sql_query": None}
 
 
@@ -135,15 +134,15 @@ async def sql_executor_node(state: GraphState):
         logger.error("sql_executor_node called with no query.")
         return {"execution_result": "Error: No SQL query to execute."}
 
-    session = state["db_connection"]
-    try:
-        result = await session.execute(text(sql_query))
-        result_dicts = [dict(row) for row in result.mappings()]
-        logger.info("SQL execution successful", result_count=len(result_dicts))
-        return {"execution_result": str(result_dicts)}
-    except Exception as e:
-        logger.error("Error during SQL execution", error=str(e), exc_info=True)
-        return {"execution_result": f"Error executing query: {e}"}
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(text(sql_query))
+            result_dicts = [dict(row) for row in result.mappings()]
+            logger.info("SQL execution successful", result_count=len(result_dicts))
+            return {"execution_result": str(result_dicts)}
+        except Exception as e:
+            logger.error("Error during SQL execution", error=str(e), exc_info=True)
+            return {"execution_result": f"Error executing query: {e}"}
 
 
 async def final_answer_node(state: GraphState):

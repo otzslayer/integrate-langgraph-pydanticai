@@ -1,6 +1,11 @@
 import streamlit as st
 import requests
 import os
+import json
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # --- App Configuration ---
 st.set_page_config(page_title="Text-to-SQL Chatbot", page_icon="💬")
@@ -29,48 +34,62 @@ for message in st.session_state.messages:
                 st.code("\n".join(message["thoughts"]), language="text")
 
 
-# --- User Input Handling ---
 if prompt := st.chat_input("질문을 입력하세요..."):
-    # Add user message to chat chat history
+    # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     # --- Assistant Response Generation ---
     with st.chat_message("assistant"):
+        thoughts_expander = st.expander("Agent's Thoughts")
+        thoughts_container = thoughts_expander.empty()
         message_placeholder = st.empty()
-        message_placeholder.markdown("Thinking...")
+        
+        all_thoughts = []
+        full_response = ""
 
         try:
-            # Call the backend API
-            response = requests.post(API_URL, json={"question": prompt})
-            response.raise_for_status()  # Raise an exception for bad status codes
-            
-            data = response.json()
-            assistant_response = data.get("answer", "죄송합니다, 답변을 생성하지 못했습니다.")
-            thoughts = data.get("thoughts", [])
+            with requests.post(API_URL, json={"question": prompt}, stream=True) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line:
+                        decoded_line = line.decode('utf-8')
+                        if decoded_line.startswith('data: '):
+                            try:
+                                event_data = json.loads(decoded_line[6:])
+                                event_type = event_data.get("type")
+                                data = event_data.get("data")
 
-            # Display the final answer
-            message_placeholder.markdown(assistant_response)
+                                if event_type == "thought":
+                                    all_thoughts.append(data)
+                                    thoughts_container.code("\n".join(all_thoughts), language="text")
+                                
+                                elif event_type == "answer":
+                                    full_response = data
+                                    message_placeholder.markdown(full_response)
 
-            # Store the full response including thoughts
+                                elif event_type == "error":
+                                    full_response = f"Error: {data}"
+                                    st.error(full_response)
+                                    break
+
+                            except json.JSONDecodeError:
+                                logger.warning(f"Could not decode JSON from stream: {decoded_line}")
+
+            # Store the full response in session state after the stream is complete
             assistant_message = {
                 "role": "assistant",
-                "content": assistant_response,
-                "thoughts": thoughts,
+                "content": full_response,
+                "thoughts": all_thoughts,
             }
             st.session_state.messages.append(assistant_message)
 
-            # Display thoughts in an expander
-            if thoughts:
-                with st.expander("Agent's Thoughts"):
-                    st.code("\n".join(thoughts), language="text")
-
         except requests.exceptions.RequestException as e:
             error_message = f"백엔드 API 호출에 실패했습니다: {e}"
-            message_placeholder.error(error_message)
+            st.error(error_message)
             st.session_state.messages.append({"role": "assistant", "content": error_message})
         except Exception as e:
             error_message = f"오류가 발생했습니다: {e}"
-            message_placeholder.error(error_message)
+            st.error(error_message)
             st.session_state.messages.append({"role": "assistant", "content": error_message})
