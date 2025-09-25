@@ -1,0 +1,33 @@
+lint.select = [
+    "E",   # Pycodestyle 오류 (들여쓰기, 공백 등)
+    "F",   # Pyflakes 오류 (미사용 변수, 임포트 등)
+    "I",   # 임포트 정렬
+    "UP",  # pyupgrade
+    "N",   # PEP8 명명 규칙
+    "Q",   # 따옴표 스타일 
+    "S",   # 보안 이슈
+    "SIM", # 코드 단순화
+    "ARG", # 미사용 함수 인자 (flake8-unused-arguments)
+    "W",   # Pycodesylte 경고
+    "B",   # 잠재적 버그 검출
+    "C4",  # 컴프리헨션 최적화
+]
+
+line-length = 80
+indent-width = 4
+target-version = "py312"
+
+[lint.isort]
+case-sensitive = true
+
+[format]
+quote-style = "double"
+line-ending = "auto"
+
+[lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.parmas.Depends",
+    "fastapi.Query",
+    "fastapi.params.Query",
+]

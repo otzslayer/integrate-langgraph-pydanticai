@@ -1,0 +1,115 @@
+DROP TABLE IF EXISTS employee_department, employees, departments;
+
+CREATE TABLE departments (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    manager TEXT NOT NULL
+);
+
+CREATE TABLE employees (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    salary INTEGER
+);
+
+CREATE TABLE employee_department (
+    employee_id INTEGER NOT NULL REFERENCES employees(id),
+    department_id INTEGER NOT NULL REFERENCES departments(id),
+    PRIMARY KEY (employee_id, department_id)
+);
+
+INSERT INTO departments (id, name, manager) VALUES
+(1, 'Engineering', 'Eve'),
+(2, 'HR', 'Frank'),
+(3, 'Marketing', 'Grace'),
+(4, 'Sales', 'Heidi'),
+(5, 'IT', 'Ivan'),
+(6, 'Finance', 'Judy'),
+(7, 'Operations', 'Mallory'),
+(8, 'Legal', 'Oscar'),
+(9, 'Product', 'Peggy'),
+(10, 'Design', 'Walter');
+
+INSERT INTO employees (id, name, salary) VALUES
+(1, 'Alice', 80000),
+(2, 'Bob', 90000),
+(3, 'Charlie', 60000),
+(4, 'David', 75000),
+(5, 'Employee_5', 53000),
+(6, 'Employee_6', 54000),
+(7, 'Employee_7', 55000),
+(8, 'Employee_8', 56000),
+(9, 'Employee_9', 57000),
+(10, 'Employee_10', 58000),
+(11, 'Employee_11', 59000),
+(12, 'Employee_12', 60000),
+(13, 'Employee_13', 61000),
+(14, 'Employee_14', 62000),
+(15, 'Employee_15', 63000),
+(16, 'Employee_16', 64000),
+(17, 'Employee_17', 65000),
+(18, 'Employee_18', 66000),
+(19, 'Employee_19', 67000),
+(20, 'Employee_20', 68000),
+(21, 'Employee_21', 69000),
+(22, 'Employee_22', 70000),
+(23, 'Employee_23', 71000),
+(24, 'Employee_24', 72000),
+(25, 'Employee_25', 73000),
+(26, 'Employee_26', 74000),
+(27, 'Employee_27', 75000),
+(28, 'Employee_28', 76000),
+(29, 'Employee_29', 77000),
+(30, 'Employee_30', 78000),
+(31, 'Employee_31', 79000),
+(32, 'Employee_32', 80000),
+(33, 'Employee_33', 81000),
+(34, 'Employee_34', 82000),
+(35, 'Employee_35', 83000),
+(36, 'Employee_36', 84000),
+(37, 'Employee_37', 85000),
+(38, 'Employee_38', 86000),
+(39, 'Employee_39', 87000),
+(40, 'Employee_40', 88000);
+
+INSERT INTO employee_department (employee_id, department_id) VALUES
+(1, 1),
+(2, 1),
+(3, 2),
+(4, 3),
+(5, 4),
+(6, 5),
+(7, 6),
+(8, 7),
+(9, 8),
+(10, 9),
+(11, 10),
+(12, 1),
+(13, 2),
+(14, 3),
+(15, 4),
+(16, 5),
+(17, 6),
+(18, 7),
+(19, 8),
+(20, 9),
+(21, 10),
+(22, 1),
+(23, 2),
+(24, 3),
+(25, 4),
+(26, 5),
+(27, 6),
+(28, 7),
+(29, 8),
+(30, 9),
+(31, 10),
+(32, 1),
+(33, 2),
+(34, 3),
+(35, 4),
+(36, 5),
+(37, 6),
+(38, 7),
+(39, 8),
+(40, 9);
