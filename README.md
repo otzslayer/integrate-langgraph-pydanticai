@@ -33,7 +33,6 @@ Python 가상 환경을 설정하고 `uv`를 사용하여 필요한 라이브러
 
     ```env
     # .env
-    DATABASE_URL="postgresql+asyncpg://myuser:mypassword@localhost:5432/text2sql"
     OPENAI_API_KEY="sk-..."
     ```
     *`sk-...` 부분에 자신의 OpenAI API 키를 입력하세요.*
