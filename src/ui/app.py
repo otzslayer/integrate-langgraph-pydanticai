@@ -1,8 +1,9 @@
-import streamlit as st
-import requests
-import os
 import json
 import logging
+import os
+
+import requests
+import streamlit as st
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -20,7 +21,8 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "안녕하세요! 데이터에 대해 궁금한 점을 질문해주세요. 제가 SQL 쿼리를 생성하여 답변해 드립니다.",
+            "content": "안녕하세요! 데이터에 대해 궁금한 점을 질문해주세요."
+            "제가 SQL 쿼리를 생성하여 답변해 드립니다.",
         }
     ]
 
@@ -45,17 +47,19 @@ if prompt := st.chat_input("질문을 입력하세요..."):
         thoughts_expander = st.expander("Agent's Thoughts")
         thoughts_container = thoughts_expander.empty()
         message_placeholder = st.empty()
-        
+
         all_thoughts = []
         full_response = ""
 
         try:
-            with requests.post(API_URL, json={"question": prompt}, stream=True) as response:
+            with requests.post(
+                API_URL, json={"question": prompt}, stream=True, timeout=60
+            ) as response:
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if line:
-                        decoded_line = line.decode('utf-8')
-                        if decoded_line.startswith('data: '):
+                        decoded_line = line.decode("utf-8")
+                        if decoded_line.startswith("data: "):
                             try:
                                 event_data = json.loads(decoded_line[6:])
                                 event_type = event_data.get("type")
@@ -63,8 +67,10 @@ if prompt := st.chat_input("질문을 입력하세요..."):
 
                                 if event_type == "thought":
                                     all_thoughts.append(data)
-                                    thoughts_container.code("\n".join(all_thoughts), language="text")
-                                
+                                    thoughts_container.code(
+                                        "\n".join(all_thoughts), language="text"
+                                    )
+
                                 elif event_type == "answer":
                                     full_response = data
                                     message_placeholder.markdown(full_response)
@@ -75,9 +81,12 @@ if prompt := st.chat_input("질문을 입력하세요..."):
                                     break
 
                             except json.JSONDecodeError:
-                                logger.warning(f"Could not decode JSON from stream: {decoded_line}")
+                                logger.warning(
+                                    f"Could not decode JSON from stream: {decoded_line}"  # noqa: E501
+                                )
 
-            # Store the full response in session state after the stream is complete
+            # Store the full response in session state
+            # after the stream is complete
             assistant_message = {
                 "role": "assistant",
                 "content": full_response,
@@ -88,8 +97,12 @@ if prompt := st.chat_input("질문을 입력하세요..."):
         except requests.exceptions.RequestException as e:
             error_message = f"백엔드 API 호출에 실패했습니다: {e}"
             st.error(error_message)
-            st.session_state.messages.append({"role": "assistant", "content": error_message})
+            st.session_state.messages.append(
+                {"role": "assistant", "content": error_message}
+            )
         except Exception as e:
             error_message = f"오류가 발생했습니다: {e}"
             st.error(error_message)
-            st.session_state.messages.append({"role": "assistant", "content": error_message})
+            st.session_state.messages.append(
+                {"role": "assistant", "content": error_message}
+            )

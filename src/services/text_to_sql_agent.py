@@ -19,9 +19,12 @@ async def intent_classifier_node(state: GraphState):
     intent_agent = Agent("openai:gpt-4o", output_type=Intent)
 
     prompt = f"""
-    Classify the user's intent based on their question into one of the following categories: "sql_generation", "greeting", "chit_chat", or "unknown".
+    Classify the user's intent based on their question into one of
+    the following categories:
+        "sql_generation", "greeting", "chit_chat", or "unknown".
 
-    - For work-related questions involving data lookup or analysis, classify as "sql_generation".
+    - For work-related questions involving data lookup or analysis,
+        classify as "sql_generation".
     - If the intent is unclear, you must classify it as "unknown".
 
     User Question: {state["question"]}
@@ -48,8 +51,10 @@ async def sql_generator_node(state: GraphState):
     reflection_feedback = "\n".join(state.get("reflection", []))
 
     prompt = f"""
-    You are a PostgreSQL database expert. Your goal is to generate a SQL query to answer the user's question.
-    First, think about the user's question and the database schema to devise a plan.
+    You are a PostgreSQL database expert.
+    Your goal is to generate a SQL query to answer the user's question.
+    First, think about the user's question and the database schema
+    to devise a plan.
     Then, generate the SQL query based on your plan.
 
     ### Database Schema:
@@ -60,8 +65,9 @@ async def sql_generator_node(state: GraphState):
 
     ### User Question:
     {state["question"]}
-    
-    The final query must be a single, valid PostgreSQL SELECT statement ending with a semicolon.
+
+    The final query must be a single, valid PostgreSQL SELECT statement ending
+    with a semicolon.
     """
 
     sql_agent = Agent("openai:gpt-4o", output_type=ThoughtAndSQL)
@@ -109,7 +115,9 @@ async def reflection_node(state: GraphState):
             await session.execute(text(f"EXPLAIN {sql_query}"))
             logger.info("SQL query syntax validation passed (EXPLAIN).")
         except Exception as e:
-            logger.warning("SQL query syntax error", error=str(e), exc_info=True)
+            logger.warning(
+                "SQL query syntax error", error=str(e), exc_info=True
+            )
             reflections.append(
                 f"Query syntax error: {e}. "
                 f"Please check the schema again and correct it."
@@ -138,10 +146,14 @@ async def sql_executor_node(state: GraphState):
         try:
             result = await session.execute(text(sql_query))
             result_dicts = [dict(row) for row in result.mappings()]
-            logger.info("SQL execution successful", result_count=len(result_dicts))
+            logger.info(
+                "SQL execution successful", result_count=len(result_dicts)
+            )
             return {"execution_result": str(result_dicts)}
         except Exception as e:
-            logger.error("Error during SQL execution", error=str(e), exc_info=True)
+            logger.error(
+                "Error during SQL execution", error=str(e), exc_info=True
+            )
             return {"execution_result": f"Error executing query: {e}"}
 
 
@@ -154,7 +166,8 @@ async def final_answer_node(state: GraphState):
     if intent == "greeting":
         answer = "Hello! How can I help you?"
     elif intent == "chit_chat":
-        prompt = f"The user said: '{state['question']}'. Respond with a brief, friendly, and conversational message."
+        prompt = f"""The user said: '{state["question"]}'.
+        Respond with a brief, friendly, and conversational message."""
         result = await final_answer_agent.run(prompt)
         answer = result.output
     elif intent == "unknown":

@@ -36,8 +36,14 @@ async def get_db_schema(session: AsyncSession) -> str:
                 for col in columns:
                     schema_str += f"  - {col}\n"
 
-            logger.info("데이터베이스 스키마 조회 성공", tables=list(schema_dict.keys()))
+            logger.info(
+                "데이터베이스 스키마 조회 성공", tables=list(schema_dict.keys())
+            )
             return schema_str
         except Exception as e:
-            logger.error("데이터베이스 스키마 조회 중 오류 발생", error=str(e), exc_info=True)
+            logger.error(
+                "데이터베이스 스키마 조회 중 오류 발생",
+                error=str(e),
+                exc_info=True,
+            )
             raise

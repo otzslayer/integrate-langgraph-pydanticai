@@ -1,9 +1,10 @@
-import json
 import asyncio
+import json
+
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
 
 from src.database.connection import get_db_session
 from src.database.utils import get_db_schema
@@ -45,26 +46,34 @@ async def invoke_agent(
                 "is_final": False,
             }
 
-            async for event in agent_app.astream_events(initial_state, version="v1"):
+            async for event in agent_app.astream_events(
+                initial_state, version="v1"
+            ):
                 kind = event["event"]
                 if kind == "on_chain_end":
                     if event["name"] == "sql_generator":
                         data = event["data"]["output"]
                         if thoughts := data.get("thoughts"):
                             # 스트림으로 생각(thought) 전송
-                            yield f"data: {json.dumps({'type': 'thought', 'data': thoughts[-1]})}\n\n"
-                            await asyncio.sleep(0.01) # 클라이언트가 받을 수 있도록 잠시 대기
-                            
+                            yield f"data: {json.dumps({'type': 'thought', 'data': thoughts[-1]})}\n\n"  # noqa: E501
+                            await asyncio.sleep(
+                                0.01
+                            )  # 클라이언트가 받을 수 있도록 잠시 대기
+
                     elif event["name"] == "final_answer":
                         data = event["data"]["output"]
                         if final_answer := data.get("final_answer"):
                             # 스트림으로 최종 답변(final_answer) 전송
-                            yield f"data: {json.dumps({'type': 'answer', 'data': final_answer})}\n\n"
+                            yield f"data: {json.dumps({'type': 'answer', 'data': final_answer})}\n\n"  # noqa: E501
                             await asyncio.sleep(0.01)
 
         except Exception as e:
-            logger.error("에이전트 스트리밍 중 오류 발생", error=str(e), exc_info=True)
-            error_message = json.dumps({"type": "error", "data": f"An error occurred: {e}"})
+            logger.error(
+                "에이전트 스트리밍 중 오류 발생", error=str(e), exc_info=True
+            )
+            error_message = json.dumps(
+                {"type": "error", "data": f"An error occurred: {e}"}
+            )
             yield f"data: {error_message}\n\n"
 
     return StreamingResponse(stream_generator(), media_type="text/event-stream")
