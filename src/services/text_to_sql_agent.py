@@ -40,8 +40,8 @@ async def intent_classifier_node(state: GraphState):
         )
         intent = "unknown"
 
-    # Initialize thoughts list
-    return {"intent": intent, "thoughts": [], "messages": []}
+    # Initialize thought_history list
+    return {"intent": intent, "thought_history": [], "messages": []}
 
 
 async def sql_generator_node(state: GraphState):
@@ -82,9 +82,9 @@ async def sql_generator_node(state: GraphState):
         )
 
         # Add thought to state
-        thoughts = state.get("thoughts", []) + [thought]
+        thought_history = state.get("thought_history", []) + [thought]
 
-        return {"thoughts": thoughts, "sql_query": sql_query}
+        return {"thought_history": thought_history, "sql_query": sql_query}
 
     except Exception as e:
         logger.error("Error during SQL generation", error=str(e), exc_info=True)
@@ -157,6 +157,49 @@ async def sql_executor_node(state: GraphState):
             return {"execution_result": f"Error executing query: {e}"}
 
 
+async def synthesize_result_node(state: GraphState):
+    """
+    Synthesizes the SQL execution result into a natural language thought
+    before generating the final answer.
+    """
+    logger.info("Executing node: synthesize_result")
+
+    if (
+        state.get("execution_result")
+        and "Error" not in state["execution_result"]
+    ):
+        prompt = f"""
+        Based on the following question and database query result,
+        synthesize a thought process for generating a natural language answer.
+        This thought should explain how the data answers the user's question.
+
+        - Question: {state["question"]}
+        - Query Result: {state["execution_result"]}
+        """
+        thought_agent = Agent("openai:gpt-4o")
+        try:
+            result = await thought_agent.run(prompt)
+            thought = result.output
+            logger.info("Result synthesis successful.", thought=thought)
+            return {"thought": thought}
+        except Exception as e:
+            logger.error(
+                "Error during result synthesis", error=str(e), exc_info=True
+            )
+            return {"thought": f"Error during result synthesis: {e}"}
+    elif state.get("reflection"):
+        thought = (
+            "An error occurred during the SQL generation or reflection phase. "
+            f"The error was: {state['reflection']}"
+        )
+        return {"thought": thought}
+    else:
+        thought = (
+            "No execution result was found, so I cannot provide an answer."
+        )
+        return {"thought": thought}
+
+
 async def final_answer_node(state: GraphState):
     """Generates the final answer to be shown to the user."""
     logger.info("Executing node: final_answer")
@@ -173,29 +216,20 @@ async def final_answer_node(state: GraphState):
     elif intent == "unknown":
         answer = "I'm sorry, I didn't understand your question. "
         "Please ask questions related to employees, departments, and salaries."
-    elif state.get("execution_result"):
-        if "Error" in state["execution_result"]:
-            logger.error(
-                "Error in query execution result",
-                execution_result=state["execution_result"],
-            )
-            answer = "An error occurred while executing the query. "
-            f"Please contact an administrator. ({state['execution_result']})"
-        else:
-            prompt = f"""
-            Based on the following question and database query result,
-            please provide a natural language answer in Korean.
+    elif state.get("thought"):
+        prompt = f"""
+        Based on the following thought process, please provide a final,
+        natural-language answer in Korean.
 
-            - Question: {state["question"]}
-            - Query Result: {state["execution_result"]}
-            """
-            result = await final_answer_agent.run(prompt)
-            answer = result.output
+        - Thought: {state["thought"]}
+        """
+        result = await final_answer_agent.run(prompt)
+        answer = result.output
     else:
         answer = "I'm sorry, I couldn't find an answer to your question."
 
     logger.info("Final answer generation complete", final_answer=answer)
-    return {"final_answer": answer, "is_final": True}
+    return {"answer": answer, "is_final": True}
 
 
 # --- Graph Edges and Configuration ---
@@ -217,10 +251,11 @@ def route_after_reflection(state: GraphState):
     # If reflection has found issues, stop and go to the final answer.
     if state.get("reflection"):
         logger.warning(
-            "Reflection found issues. Halting execution.",
+            "Reflection found issues. "
+            "Halting execution and synthesizing result.",
             reflections=state["reflection"],
         )
-        return "final_answer"
+        return "synthesize_result"
 
     logger.info("Query is valid, routing to sql_executor")
     return "sql_executor"
@@ -233,6 +268,7 @@ workflow.add_node("intent_classifier", intent_classifier_node)
 workflow.add_node("sql_generator", sql_generator_node)
 workflow.add_node("reflection", reflection_node)
 workflow.add_node("sql_executor", sql_executor_node)
+workflow.add_node("synthesize_result", synthesize_result_node)
 workflow.add_node("final_answer", final_answer_node)
 
 workflow.set_entry_point("intent_classifier")
@@ -246,9 +282,11 @@ workflow.add_edge("sql_generator", "reflection")
 workflow.add_conditional_edges(
     "reflection",
     route_after_reflection,
-    {"final_answer": "final_answer", "sql_executor": "sql_executor"},
+    # If reflection fails, it now goes to synthesize, not directly to the end.
+    {"final_answer": "synthesize_result", "sql_executor": "sql_executor"},
 )
-workflow.add_edge("sql_executor", "final_answer")
+workflow.add_edge("sql_executor", "synthesize_result")
+workflow.add_edge("synthesize_result", "final_answer")
 workflow.add_edge("final_answer", END)
 
 # Compile the graph

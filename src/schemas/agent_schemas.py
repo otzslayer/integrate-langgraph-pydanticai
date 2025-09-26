@@ -46,7 +46,8 @@ class GraphState(TypedDict):
     reflection: list[str]
     reflection_history: list[str]
     execution_result: str | None
-    final_answer: str | None
+    thought: str | None
+    answer: str | None
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    thoughts: list[str]
+    thought_history: list[str]
     is_final: bool

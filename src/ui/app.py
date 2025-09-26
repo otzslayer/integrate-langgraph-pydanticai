@@ -30,10 +30,10 @@ if "messages" not in st.session_state:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        # Display thoughts if they exist
-        if "thoughts" in message and message["thoughts"]:
-            with st.expander("Agent's Thoughts"):
-                st.code("\n".join(message["thoughts"]), language="text")
+        # Display thought if it exists
+        if "thought" in message and message["thought"]:
+            with st.expander("Agent's Thought"):
+                st.markdown(message["thought"])
 
 
 if prompt := st.chat_input("질문을 입력하세요..."):
@@ -44,11 +44,11 @@ if prompt := st.chat_input("질문을 입력하세요..."):
 
     # --- Assistant Response Generation ---
     with st.chat_message("assistant"):
-        thoughts_expander = st.expander("Agent's Thoughts")
-        thoughts_container = thoughts_expander.empty()
+        thought_expander = st.expander("Agent's Thought")
+        thought_container = thought_expander.empty()
         message_placeholder = st.empty()
 
-        all_thoughts = []
+        agent_thought = ""
         full_response = ""
 
         try:
@@ -66,10 +66,8 @@ if prompt := st.chat_input("질문을 입력하세요..."):
                                 data = event_data.get("data")
 
                                 if event_type == "thought":
-                                    all_thoughts.append(data)
-                                    thoughts_container.code(
-                                        "\n".join(all_thoughts), language="text"
-                                    )
+                                    agent_thought = data
+                                    thought_container.markdown(agent_thought)
 
                                 elif event_type == "answer":
                                     full_response = data
@@ -90,7 +88,7 @@ if prompt := st.chat_input("질문을 입력하세요..."):
             assistant_message = {
                 "role": "assistant",
                 "content": full_response,
-                "thoughts": all_thoughts,
+                "thought": agent_thought,
             }
             st.session_state.messages.append(assistant_message)
 
