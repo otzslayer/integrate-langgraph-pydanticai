@@ -55,7 +55,19 @@ async def invoke_agent(
                     node_name = event["name"]
                     data = event["data"]["output"]
 
-                    if node_name == "synthesize_result":
+                    if node_name == "sql_generator":
+                        if sql_query := data.get("sql_query"):
+                            # Stream the generated SQL query
+                            yield f"data: {json.dumps({'type': 'sql_query', 'data': sql_query})}\n\n"
+                            await asyncio.sleep(0.01)
+
+                    elif node_name == "sql_executor":
+                        if execution_result := data.get("execution_result"):
+                            # Stream the execution result
+                            yield f"data: {json.dumps({'type': 'execution_result', 'data': execution_result})}\n\n"
+                            await asyncio.sleep(0.01)
+
+                    elif node_name == "synthesize_result":
                         if thought := data.get("thought"):
                             # Stream the thought
                             yield f"data: {json.dumps({'type': 'thought', 'data': thought})}\n\n"

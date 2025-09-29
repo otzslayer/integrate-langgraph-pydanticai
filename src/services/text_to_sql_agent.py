@@ -4,6 +4,7 @@ from pydantic_ai import Agent
 from sqlalchemy import text
 
 from src.database.connection import AsyncSessionLocal
+from src.resources.prompts import Prompts
 from src.schemas.agent_schemas import GraphState, Intent, ThoughtAndSQL
 
 # 로거 설정
@@ -17,18 +18,7 @@ async def intent_classifier_node(state: GraphState):
     logger.info("Executing node: intent_classifier")
 
     intent_agent = Agent("openai:gpt-4o", output_type=Intent)
-
-    prompt = f"""
-    Classify the user's intent based on their question into one of
-    the following categories:
-        "sql_generation", "greeting", "chit_chat", or "unknown".
-
-    - For work-related questions involving data lookup or analysis,
-        classify as "sql_generation".
-    - If the intent is unclear, you must classify it as "unknown".
-
-    User Question: {state["question"]}
-    """
+    prompt = Prompts.classify_intent(state["question"])
 
     try:
         result = await intent_agent.run(prompt)
@@ -49,26 +39,13 @@ async def sql_generator_node(state: GraphState):
     logger.info("Executing node: sql_generator")
 
     reflection_feedback = "\n".join(state.get("reflection", []))
-
-    prompt = f"""
-    You are a PostgreSQL database expert.
-    Your goal is to generate a SQL query to answer the user's question.
-    First, think about the user's question and the database schema
-    to devise a plan.
-    Then, generate the SQL query based on your plan.
-
-    ### Database Schema:
-    {state["db_schema"]}
-
-    ### Feedback from previous attempts (if any):
-    {reflection_feedback if reflection_feedback else "None"}
-
-    ### User Question:
-    {state["question"]}
-
-    The final query must be a single, valid PostgreSQL SELECT statement ending
-    with a semicolon.
-    """
+    prompt = Prompts.generate_sql(
+        db_schema=state["db_schema"],
+        reflection_feedback=reflection_feedback
+        if reflection_feedback
+        else "None",
+        question=state["question"],
+    )
 
     sql_agent = Agent("openai:gpt-4o", output_type=ThoughtAndSQL)
 
@@ -168,14 +145,10 @@ async def synthesize_result_node(state: GraphState):
         state.get("execution_result")
         and "Error" not in state["execution_result"]
     ):
-        prompt = f"""
-        Based on the following question and database query result,
-        synthesize a thought process for generating a natural language answer.
-        This thought should explain how the data answers the user's question.
-
-        - Question: {state["question"]}
-        - Query Result: {state["execution_result"]}
-        """
+        prompt = Prompts.synthesize_result(
+            question=state["question"],
+            execution_result=state["execution_result"],
+        )
         thought_agent = Agent("openai:gpt-4o")
         try:
             result = await thought_agent.run(prompt)
@@ -209,20 +182,16 @@ async def final_answer_node(state: GraphState):
     if intent == "greeting":
         answer = "Hello! How can I help you?"
     elif intent == "chit_chat":
-        prompt = f"""The user said: '{state["question"]}'.
-        Respond with a brief, friendly, and conversational message."""
+        prompt = Prompts.generate_chit_chat(state["question"])
         result = await final_answer_agent.run(prompt)
         answer = result.output
     elif intent == "unknown":
         answer = "I'm sorry, I didn't understand your question. "
         "Please ask questions related to employees, departments, and salaries."
     elif state.get("thought"):
-        prompt = f"""
-        Based on the following thought process, please provide a final,
-        natural-language answer in Korean.
-
-        - Thought: {state["thought"]}
-        """
+        prompt = Prompts.generate_final_answer(
+            thought=state["thought"], question=state["question"]
+        )
         result = await final_answer_agent.run(prompt)
         answer = result.output
     else:
