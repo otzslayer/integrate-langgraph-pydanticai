@@ -1,5 +1,7 @@
 DROP TABLE IF EXISTS employee_department, employees, departments;
 
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE departments (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
